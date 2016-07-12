@@ -12,8 +12,8 @@
  *
  * 2. Let the job to use /tmp and in the epilog find all the files owned by the
  *    user if s/he does not have an active job running on the node anymore clean
- *    them.  But if the user still have a job running, even though temp files
- *    may belong to the last job they are still retained in this job session.
+ *    them.  But if the user still has a job running, even though temp files
+ *    may belong to the last job, they are still retained in this job session.
  *
  * 3. Use a separate namespace which is used in this plugin.  The idea is to
  *    create a per-job basis tmpdir and shmdir in /tmp and /dev/shm and attach
