@@ -22,6 +22,12 @@
  *    will bypass the namespace created by this plugin and falls back to the
  *    default namespace, such as Hadoop and Spark jobs. (TODO)
  *
+ *
+ * gcc -shared -fPIC -o tmpshm.so rmrf.c tmpshm.c
+ *
+ * plugstack.conf:
+ * required /etc/slurm/spank/tmpshm.so
+ *
  */
 
 #define _GNU_SOURCE_
@@ -34,7 +40,9 @@
 #include <sys/mount.h>
 #include <unistd.h>
 
+
 SPANK_PLUGIN (tmpshm, 1);
+const char *myname = "tmpshm";
 
 extern int rmrf(const char*);
 
@@ -49,21 +57,21 @@ int get_tmpshm(spank_t sp, char *tmpdir, char *shmdir) {
     int rv;
 
     if (spank_get_item(sp, S_JOB_ID, &jobid)) {
-        slurm_error("tmpshm: Unable to get JOBID");
+        slurm_error("%s: Unable to get JOBID", myname);
         return -1;
     }
 
     rv = snprintf(tmpdir, PATH_MAX, "%s/job%d", tmp_base, jobid);
 
     if (rv < 0 || rv > PATH_MAX - 1) {
-        slurm_error("tmpshm: Unable to construct tmpdir: %s/job%d", tmp_base, jobid);
+        slurm_error("%s: Unable to construct tmpdir: %s/job%d", myname, tmp_base, jobid);
         return -1;
     }
 
     rv = snprintf(shmdir, PATH_MAX, "%s/job%d", shm_base, jobid);
 
     if (rv < 0 || rv > PATH_MAX - 1) {
-        slurm_error("tmpshm: Unable to construct shmdir: %s/job%d", shm_base, jobid);
+        slurm_error("%s: Unable to construct shmdir: %s/job%d", myname, shm_base, jobid);
         return -1;
     }
 
@@ -76,17 +84,17 @@ int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
     char shmdir[PATH_MAX];
 
     if (get_tmpshm(sp, tmpdir, shmdir)) {
-        slurm_error("tmpshm: Unable to construct tmpdir or shmdir");
+        slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
     if (mkdir(tmpdir, 0700)) {
-        slurm_error("tmpshm: Unable to mkdir(%s, 0700): %m", tmpdir);
+        slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, tmpdir);
         return -1;
     }
 
     if (mkdir(shmdir, 0700)) {
-        slurm_error("tmpshm: Unable to mkdir(%s, 0700): %m", shmdir);
+        slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, shmdir);
         return -1;
     }
 
@@ -95,7 +103,7 @@ int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
 
 /* Clone mount namespace and bind mount tmpdir and shmdir in the current
  * namespace for each task before the priviledge is dropped. */
-int slurm_spank_task_init_privileged(spank_t sp, int ac, char ** av) {
+int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
     uid_t uid = -1;
     gid_t gid = -1;
 
@@ -103,47 +111,48 @@ int slurm_spank_task_init_privileged(spank_t sp, int ac, char ** av) {
     char shmdir[PATH_MAX];
 
     if (spank_get_item(sp, S_JOB_UID, &uid)) {
-        slurm_error("tmpshm: Unable to get uid");
+        slurm_error("%s: Unable to get uid", myname);
         return -1;
     }
 
     if (spank_get_item(sp, S_JOB_GID, &gid)) {
-        slurm_error("tmpshm: Unable to get gid");
+        slurm_error("%s: Unable to get gid", myname);
         return -1;
     }
 
     if (get_tmpshm(sp, tmpdir, shmdir)) {
-        slurm_error("tmpshm: Unable to construct tmpdir or shmdir");
+        slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
     if (chown(tmpdir, uid, gid)) {
-        slurm_error("tmpshm: Unable to chown(%s, %u, %u): %m", tmpdir, uid, gid);
+        slurm_error("%s: Unable to chown(%s, %u, %u): %m", myname, tmpdir, uid, gid);
         return -1;
     }
 
     if (chown(shmdir, uid, gid)) {
-        slurm_error("tmpshm: Unable to chown(%s, %u, %u): %m", shmdir, uid, gid);
+        slurm_error("%s: Unable to chown(%s, %u, %u): %m", myname, shmdir, uid, gid);
         return -1;
     }
 
     if (unshare(CLONE_NEWNS)) {
-        slurm_error("tmpshm: Unable to unshare(CLONE_NEWNS): %m");
+        slurm_error("%s: Unable to unshare(CLONE_NEWNS): %m", myname);
+
         return -1;
     }
 
     if (mount(tmpdir, var_base, "none", MS_BIND, "")) {
-        slurm_error("tmpshm: Unable to bind mount(%s, %s): %m", tmpdir, var_base);
+        slurm_error("%s: Unable to bind mount(%s, %s): %m", myname, tmpdir, var_base);
         return -1;
     }
 
     if (mount(tmpdir, tmp_base, "none", MS_BIND, "")) {
-        slurm_error("tmpshm: Unable to bind mount(%s, %s): %m", tmpdir, tmp_base);
+        slurm_error("%s: Unable to bind mount(%s, %s): %m", myname, tmpdir, tmp_base);
         return -1;
     }
 
     if (mount(shmdir, shm_base, "none", MS_BIND, "")) {
-        slurm_error("tmpshm: Unable to bind mount(%s, %s): %m", shmdir, shm_base);
+        slurm_error("%s: Unable to bind mount(%s, %s): %m", myname, shmdir, shm_base);
         return -1;
     }
 
@@ -156,17 +165,17 @@ int slurm_spank_job_epilog(spank_t sp, int ac, char **av) {
     char shmdir[PATH_MAX];
 
     if (get_tmpshm(sp, tmpdir, shmdir)) {
-        slurm_error("tmpshm: Unable to construct tmpdir or shmdir");
+        slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
     if (rmrf(tmpdir)) {
-        slurm_error("tmpshm: Unable to rmrf(%s) (tmpdir): %m", tmpdir);
+        slurm_error("%s: Unable to rmrf(%s) (tmpdir): %m", myname, tmpdir);
         return -1;
     }
 
     if (rmrf(shmdir)) {
-        slurm_error("tmpshm: Unable to rmrf(%s) (shmdir): %m", shmdir);
+        slurm_error("%s: Unable to rmrf(%s) (shmdir): %m", myname, shmdir);
         return -1;
     }
 

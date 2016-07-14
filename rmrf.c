@@ -12,8 +12,7 @@
 
 int unlink_cb_f(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
     int rv = remove(fpath);
-    if (rv)
-        slurm_error("tmpshm: Unable to remove(%s): %m", fpath);
+    if (rv) slurm_error("tmpshm: Unable to remove(%s): %m", fpath);
     return rv;
 }
 
