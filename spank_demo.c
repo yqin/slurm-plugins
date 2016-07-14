@@ -25,14 +25,17 @@ int display_msg(spank_t sp, char const *caller, char const *msg) {
     gid_t gid = getgid();
     char hostname[1024];
 
+    int ctx = spank_context();
+    char *ctx_str[] = {"ERROR", "LOCAL", "REMOTE", "ALLOCATOR", "SLURMD", "JOB_SCRIPT"};
+
     hostname[1023] = '\0';
     gethostname(hostname, 1023);
 
     if (msg && msg[0]) {
-        slurm_info("%s: %s, %s (uid=%d, gid=%d): %s", myname, hostname, caller, uid, gid, msg);
+        slurm_info("%s: %s, %s, %s (uid=%d, gid=%d): %s", myname, ctx_str[ctx], hostname, caller, uid, gid, msg);
     }
     else {
-        slurm_info("%s: %s, %s (uid=%d, gid=%d)", myname, hostname, caller, uid, gid);
+        slurm_info("%s: %s, %s, %s (uid=%d, gid=%d)", myname, ctx_str[ctx], hostname, caller, uid, gid);
     }
 
     return 0;
