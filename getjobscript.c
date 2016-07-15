@@ -151,7 +151,7 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     /* If job script does not exist no need to proceed. */
     if (access(source_file, F_OK) == -1) {
-        slurm_error("%s: %s does not exist", myname, source_file);
+        slurm_info("%s: %s does not exist", myname, source_file);
         return 0;
     }
 
