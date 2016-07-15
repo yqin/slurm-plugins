@@ -10,4 +10,4 @@ tmpshm.so: rmrf.c tmpshm.c
 	gcc -shared -fPIC -o tmpshm.so rmrf.c tmpshm.c
 
 clean:
-	rm -rf getjobscript.so tmpshm.so
+	rm -rf getjobscript.so spank_demo.so tmpshm.so
