@@ -4,13 +4,15 @@
  * getjobscript.c: SPANK plugin to collect job script.
  *
  * This plugin creates a separate directory for each day on a shared stoarge
- * and copy the job script to that location.
- *
+ * and copy the job script to that location. Another way to achieve this is to
+ * instrument a slurmctld prolog and collect the job script from the hash dirs
+ * within $StateSaveLocation.
  *
  * gcc -shared -fPIC -o getjobscript.so getjobscript.c
  *
  * plugstack.conf:
- * required /etc/slurm/spank/getjobscript.so source=foo target=bar
+ * required /etc/slurm/spank/getjobscript.so source=/var/slurm/spool
+ *          target=shared_dir
  *
  */
 
