@@ -12,15 +12,21 @@
  *
  * plugstack.conf:
  * required /etc/slurm/spank/getjobscript.so source=/var/slurm/spool
- *          target=shared_dir
+ *          target=shared_dir [uid=new_uid] [gid=new_gid]
+ *
+ * Note: new_uid and new_gid have to be SlurmdUser can switch to (setuid/gid)
+ *       They can also be ignore (optional arguments), or set to -1 to not to
+ *       change from the current user/group.
  *
  */
 
 #include <errno.h>
+#include <limits.h>
 #include <linux/limits.h>
 #include <slurm/spank.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -28,8 +34,25 @@
 SPANK_PLUGIN (getjobscript, 1);
 const char *myname = "getjobscript";
 
+
+/* Convert a string to UID/GID. */
+int _str2id (char * str, int *p2int) {
+    long int l;
+    char *p;
+
+    l = strtol(str, &p, 10);
+
+    if ((*p != '\0') || (l > UINT_MAX) || (l < 0)) {
+        return -1;
+    }
+
+    *p2int = l;
+
+    return 0;
+}
+
 /* Get current date string in "%F" ("%Y-%m-%d") format. */
-int get_datestring (spank_t sp, char *ds, int len) {
+int _get_datestr (char *ds, int len) {
     time_t t;
     struct tm *lt;
 
@@ -58,50 +81,41 @@ int get_datestring (spank_t sp, char *ds, int len) {
     return 0;
 }
 
-/* Copy source file to target. */
-int copy_file (spank_t sp, const char* source_file, const char* target_file) {
-    char ch;
-    FILE *source, *target;
-    int rv;
-
-    source = fopen(source_file, "r");
-
-    if (source == NULL) {
-        slurm_error("%s: Unable to open %s for read: %m", myname, source_file);
-        return -1;
-    }
-
-    target = fopen(target_file, "w");
-
-    if (target == NULL) {
-        slurm_error("%s: Unable to open %s for write: %m", myname, target_file);
-        return -1;
-    }
-
-    while ((ch = fgetc(source)) != EOF) {
-        if (fputc(ch, target) == EOF) {
-            slurm_error("%s: Unable to write to %s: %m", myname, target_file);
-            return -1;
-        }
-    }
-
-    fclose(target);
-    fclose(source);
-
-    return 0;
-}
-
-/* Make a copy of the current job script. */
+/* Make a copy of the current job script in slurm_spank_init(). */
 int slurm_spank_init(spank_t sp, int ac, char **av) {
     int i;
     int rv;
+
+    /* Effective and real user/group. */
+    uid_t euid = -1;
+    gid_t egid = -1;
+    uid_t ruid = getuid();
+    gid_t rgid = getuid();
+
     uint32_t jobid;
+
+    /* Date string in "%F" ("%Y-%m-%d") format. */
     char ds[11];
+
+    /* Source and target base directory locations. */
     char *source_base = NULL;
     char *target_base = NULL;
+
+    /* Target directory location. */
+    char target_dir[PATH_MAX];
+
+    /* Source and target filenames. */
     char source_file[PATH_MAX];
     char target_file[PATH_MAX];
-    char target_dir[PATH_MAX];
+
+    /* File handle for read and write. */
+    FILE *fd = NULL;
+
+    /* Buffer to store the source file. */
+    char *buffer = NULL;
+
+    /* Size of the buffer. */
+    long fsize = 0;
 
     /* If not in a remote context no need to proceed. */
     if (spank_remote(sp) != 1) return 0;
@@ -112,6 +126,16 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
             source_base = av[i] + 7;
         } else if (strncmp("target=", av[i], 7) == 0) {
             target_base = av[i] + 7;
+        } else if (strncmp("uid=", av[i], 4) == 0) {
+            if (_str2id(av[i] + 4, &euid)) {
+                slurm_error("%s: Unable to conver string \"%s\" to UID", myname, av[i] + 4);
+                return -1;
+            }
+        } else if (strncmp("gid=", av[i], 4) == 0) {
+            if (_str2id(av[i] + 4, &egid)) {
+                slurm_error("%s: Unable to conver string \"%s\" to GID", myname, av[i] + 4);
+                return -1;
+            }
         }
     }
 
@@ -153,12 +177,64 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     /* If job script does not exist no need to proceed. */
     if (access(source_file, F_OK) == -1) {
-        slurm_info("%s: %s does not exist", myname, source_file);
+        slurm_info("%s: Job script %s does not exist, ignore", myname, source_file);
         return 0;
     }
 
+    /* Open the source job script. */
+    fd = fopen(source_file, "rb");
+
+    if (fd == NULL) {
+        slurm_error("%s: Unable to open %s: %m", myname, source_file);
+        return -1;
+    }
+
+    /* Get the size of the source job script. */
+    if (fseek(fd, 0L, SEEK_END)) {
+        slurm_error("%s: Unable to fseek to end of %s: %m", myname, source_file);
+        return -1;
+    }
+
+    fsize = ftell(fd);
+
+    /* If source job script is empty no need to proceed. */
+    if (fsize == 0) {
+        slurm_info("%s: %s is empty", myname, source_file);
+        return 0;
+    }
+
+    if (fsize == -1) {
+        slurm_error("%s: error getting size of %s: %m", myname, source_file);
+        return -1;
+    }
+
+    if (fseek(fd, 0L, SEEK_SET)) {
+        slurm_error("%s: Unable to fseek to start of %s: %m", myname, source_file);
+        return -1;
+    }
+
+    /* Allocate buffer. */
+    buffer = malloc((fsize + 1) * sizeof(char));
+
+    if (buffer == NULL) {
+        slurm_error("%s: Unable to allocate buffer: %m", myname);
+        return -1;
+    }
+
+    /* Read the job script into buffer. */
+    fread(buffer, fsize, 1, fd);
+    buffer[fsize] = 0;
+
+    if (ferror(fd)) {
+        slurm_error("%s: Error on reading %s: %m", myname, source_file);
+        return -1;
+    }
+
+    /* Close the source file. */
+    fclose(fd);
+
     /* Obtain current date string. */
-    if (get_datestring(sp, ds, sizeof(ds))) {
+    if (_get_datestr(ds, sizeof(ds))) {
         slurm_error("%s: Unable to get current date string", myname);
         return -1;
     }
@@ -179,20 +255,63 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
         return -1;
     }
 
+    /* Ignore if target file exists - to prevent overwritten with multiple job steps. */
+    if (access(target_file, F_OK) == 0) {
+        slurm_info("%s: %s exists, ignore", myname, target_file);
+        return 0;
+    } 
+    
+    /* Switch user. */
+    if (egid != -1 && setegid(egid)) {
+        slurm_error("%s: Unable to setegid(%d): %m", myname, egid);
+        return -1;
+    }
+
+    if (euid != -1 && seteuid(euid)) {
+        slurm_error("%s: Unable to seteuid(%d): %m", myname, euid);
+        return -1;
+    }
+
     /* Create target directory to store job scripts. If it doesn't exist, create it, otherwise ignore. */
-    if (mkdir(target_dir, 0700) && errno != EEXIST) {
+    if (mkdir(target_dir, 0750) && errno != EEXIST) {
         slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, target_dir);
         return -1;
     }
 
-    /* Copy the job script, ignore if file already exist. */
-    if (access(target_file, F_OK) == 0) return 0;
+    /* Open the target file for write. */
+    fd = fopen(target_file, "wb");
 
-    if (copy_file(sp, source_file, target_file)) {
-        slurm_warn("%s: Unable to copy %s to %s", myname, source_file, target_file);
+    if (fd == NULL) {
+        slurm_error("%s: Unable to open %s: %m", myname, target_file);
+        return -1;
     }
 
-    slurm_info("%s: %s copied", myname, source_file);
+    /* Write buffer to the target job script file. */
+    fwrite(buffer, fsize, 1, fd);
+
+    if (ferror(fd)) {
+        slurm_error("%s: Error on writing %s: %m", myname, target_file);
+        return -1;
+    }
+
+    /* Close the target file. */
+    fclose(fd);
+
+    slurm_info("%s: Job script saved as %s", myname, target_file);
+
+    /* Restore uesr.*/
+    if (egid != -1 && setegid(rgid)) {
+        slurm_error("%s: Unable to setegid(%d): %m", myname, rgid);
+        return -1;
+    }
+
+    if (euid != -1 && seteuid(ruid)) {
+        slurm_error("%s: Unable to seteuid(%d): %m", myname, ruid);
+        return -1;
+    }
+
+    /* Free bufffer. */
+    free(buffer);
 
     return 0;
 }
