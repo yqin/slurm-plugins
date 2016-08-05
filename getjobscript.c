@@ -14,9 +14,9 @@
  * required /etc/slurm/spank/getjobscript.so source=/var/slurm/spool
  *          target=shared_dir [uid=new_uid] [gid=new_gid]
  *
- * Note: new_uid and new_gid have to be SlurmdUser can switch to (setuid/gid)
- *       They can also be ignore (optional arguments), or set to -1 to not to
- *       change from the current user/group.
+ * Note: new_uid and new_gid have to be what SlurmdUser can switch to 
+ *       (setuid/gid). They can also be ignore (optional arguments), or set to
+ *       -1 to not to change from the current user/group.
  *
  */
 
@@ -81,16 +81,28 @@ int _get_datestr (char *ds, int len) {
     return 0;
 }
 
+/* Restore UID, GID, and free buffer before exit. */
+int _clean_exit (uid_t ruid, gid_t rgid, char *buffer) {
+    if (rgid != -1)
+        setegid(rgid);
+
+    if (ruid != -1)
+        seteuid(ruid);
+
+    if (buffer != NULL)
+        free(buffer);
+}
+
 /* Make a copy of the current job script in slurm_spank_init(). */
-int slurm_spank_init(spank_t sp, int ac, char **av) {
+int slurm_spank_init (spank_t sp, int ac, char **av) {
     int i;
     int rv;
 
     /* Effective and real user/group. */
     uid_t euid = -1;
     gid_t egid = -1;
-    uid_t ruid = getuid();
-    gid_t rgid = getuid();
+    uid_t ruid = -1;
+    gid_t rgid = -1;
 
     uint32_t jobid;
 
@@ -131,10 +143,22 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
                 slurm_error("%s: Unable to conver string \"%s\" to UID", myname, av[i] + 4);
                 return -1;
             }
+
+            if (euid == getuid()) {
+                euid = -1;
+            } else {
+                ruid = getuid();
+            }
         } else if (strncmp("gid=", av[i], 4) == 0) {
             if (_str2id(av[i] + 4, &egid)) {
                 slurm_error("%s: Unable to conver string \"%s\" to GID", myname, av[i] + 4);
                 return -1;
+            }
+
+            if (egid == getgid()) {
+                egid = -1;
+            } else {
+                rgid = getgid();
             }
         }
     }
@@ -227,6 +251,7 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     if (ferror(fd)) {
         slurm_error("%s: Error on reading %s: %m", myname, source_file);
+        free(buffer);
         return -1;
     }
 
@@ -236,6 +261,7 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
     /* Obtain current date string. */
     if (_get_datestr(ds, sizeof(ds))) {
         slurm_error("%s: Unable to get current date string", myname);
+        free(buffer);
         return -1;
     }
 
@@ -244,6 +270,7 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     if (rv < 0 || rv > PATH_MAX - 1) {
         slurm_error("%s: Unable to contruct target directory: %s/%s", myname, target_base, ds);
+        free(buffer);
         return -1;
     }
 
@@ -252,29 +279,34 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     if (rv < 0 || rv > PATH_MAX - 1) {
         slurm_error("%s: Unable to construct target_file: %s/job%d", myname, target_base, jobid);
+        free(buffer);
         return -1;
     }
 
     /* Ignore if target file exists - to prevent overwritten with multiple job steps. */
     if (access(target_file, F_OK) == 0) {
         slurm_info("%s: %s exists, ignore", myname, target_file);
+        free(buffer);
         return 0;
     } 
     
     /* Switch user. */
     if (egid != -1 && setegid(egid)) {
         slurm_error("%s: Unable to setegid(%d): %m", myname, egid);
+        _clean_exit(ruid, rgid, buffer);
         return -1;
     }
 
     if (euid != -1 && seteuid(euid)) {
         slurm_error("%s: Unable to seteuid(%d): %m", myname, euid);
+        _clean_exit(ruid, rgid, buffer);
         return -1;
     }
 
     /* Create target directory to store job scripts. If it doesn't exist, create it, otherwise ignore. */
     if (mkdir(target_dir, 0750) && errno != EEXIST) {
-        slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, target_dir);
+        slurm_error("%s: Unable to mkdir(%s): %m", myname, target_dir);
+        _clean_exit(ruid, rgid, buffer);
         return -1;
     }
 
@@ -283,6 +315,7 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     if (fd == NULL) {
         slurm_error("%s: Unable to open %s: %m", myname, target_file);
+        _clean_exit(ruid, rgid, buffer);
         return -1;
     }
 
@@ -291,6 +324,7 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     if (ferror(fd)) {
         slurm_error("%s: Error on writing %s: %m", myname, target_file);
+        _clean_exit(ruid, rgid, buffer);
         return -1;
     }
 
@@ -299,19 +333,8 @@ int slurm_spank_init(spank_t sp, int ac, char **av) {
 
     slurm_info("%s: Job script saved as %s", myname, target_file);
 
-    /* Restore uesr.*/
-    if (egid != -1 && setegid(rgid)) {
-        slurm_error("%s: Unable to setegid(%d): %m", myname, rgid);
-        return -1;
-    }
-
-    if (euid != -1 && seteuid(ruid)) {
-        slurm_error("%s: Unable to seteuid(%d): %m", myname, ruid);
-        return -1;
-    }
-
-    /* Free bufffer. */
-    free(buffer);
+    /* Clean exit. */
+    _clean_exit(ruid, rgid, buffer);
 
     return 0;
 }
