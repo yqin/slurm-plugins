@@ -283,7 +283,7 @@ int slurm_spank_init (spank_t sp, int ac, char **av) {
         return -1;
     }
 
-    /* Ignore if target file exists - to prevent overwritten with multiple job steps. */
+    /* Ignore if target file exists - to prevent overwritten by multiple job steps. */
     if (access(target_file, F_OK) == 0) {
         slurm_info("%s: %s exists, ignore", myname, target_file);
         free(buffer);

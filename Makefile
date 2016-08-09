@@ -1,13 +1,13 @@
-all:	getjobscript.so spank_demo.so tmpshm.so
-
-getjobscript.so: getjobscript.c
-	gcc -shared -fPIC -o getjobscript.so getjobscript.c
+all:	spank_demo.so spank_get_jobscript.so spank_private_tmpshm.so
 
 spank_demo.so: spank_demo.c
 	gcc -shared -fPIC -o spank_demo.so spank_demo.c
 
-tmpshm.so: rmrf.c tmpshm.c
-	gcc -shared -fPIC -o tmpshm.so rmrf.c tmpshm.c
+spank_get_jobscript.so: spank_get_jobscript.c
+	gcc -shared -fPIC -o spank_get_jobscript.so spank_get_jobscript.c
+
+spank_private_tmpshm.so: spank_private_tmpshm.c spank_private_tmpshm_rmrf.c
+	gcc -shared -fPIC -o spank_private_tmpshm.so spank_private_tmpshm.c spank_private_tmpshm_rmrf.c
 
 clean:
-	rm -rf getjobscript.so spank_demo.so tmpshm.so
+	rm -rf spank_demo.so spank_get_jobscript.so spank_private_tmpshm.so
