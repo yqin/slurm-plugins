@@ -1,8 +1,11 @@
 SLURM_SRC_DIR = /global/home/users/yqin/applications/slurm
 
-job_submit_plugins = job_submit_require_cpu_gpu_ratio.so
+job_submit_plugins = job_submit_collect_script.so job_submit_require_cpu_gpu_ratio.so
 spank_plugins = spank_demo.so spank_collect_script.so spank_private_tmpshm.so
 
+
+job_submit_collect_script.so: job_submit_collect_script.c
+	gcc -shared -fPIC -pthread -I$(SLURM_SRC_DIR) job_submit_collect_script.c -o job_submit_collect_script.so
 
 job_submit_require_cpu_gpu_ratio.so: job_submit_require_cpu_gpu_ratio.c
 	gcc -shared -fPIC -pthread -I$(SLURM_SRC_DIR) job_submit_require_cpu_gpu_ratio.c -o job_submit_require_cpu_gpu_ratio.so

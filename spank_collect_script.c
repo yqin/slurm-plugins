@@ -64,7 +64,7 @@ int _get_datestr (char *ds, int len) {
         return -1;
     }
 
-    /* Covert to local time. */
+    /* Convert to local time. */
     lt = localtime(&t);
 
     if (lt == NULL) {
