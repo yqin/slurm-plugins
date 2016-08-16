@@ -20,7 +20,7 @@ SPANK_PLUGIN (spank_demo, 1);
 const char *myname = "spank_demo";
 
 /* Display a message through Slurm SPANK system. */
-int display_msg(spank_t sp, char const *caller, char const *msg) {
+int _display_msg(spank_t sp, char const *caller, char const *msg) {
     uid_t uid = getuid();
     gid_t gid = getgid();
     char hostname[1024];
@@ -42,66 +42,66 @@ int display_msg(spank_t sp, char const *caller, char const *msg) {
 }
 
 int slurm_spank_init (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_slurmd_init (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_init_post_opt (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_local_user_init (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_user_init (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_task_init (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_task_post_fork (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_task_exit (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_exit (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_job_epilog (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }
 
 int slurm_spank_slurmd_exit (spank_t sp, int ac, char **av) {
-    display_msg(sp, __FUNCTION__, NULL);
+    _display_msg(sp, __FUNCTION__, NULL);
     return 0;
 }

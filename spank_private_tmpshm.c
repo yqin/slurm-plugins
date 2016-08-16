@@ -1,7 +1,8 @@
 /*
  * Copyright (c) 2016, Yong Qin <yong.qin@lbl.gov>. All rights reserved.
  *
- * tmpshm.c : SPANK plugin for a per-job tmp (/tmp) and shm (/dev/shm).
+ * spank_private_tmpshm.c : SPANK plugin for a per-job tmp (/tmp) and shm
+ * (/dev/shm).
  *
  * Managing /tmp has been an issue for HPC systems.  Typically there are three
  * ways to deal with it:
@@ -23,10 +24,10 @@
  *    default namespace, such as Hadoop and Spark jobs. (TODO)
  *
  *
- * gcc -shared -fPIC -o tmpshm.so rmrf.c tmpshm.c
+ * gcc -shared -fPIC -o spank_private_tmpshm.so rmrf.c spank_private_tmpshm.c
  *
  * plugstack.conf:
- * required /etc/slurm/spank/tmpshm.so
+ * required /etc/slurm/spank/spank_private_tmpshm.so
  *
  */
 
@@ -41,8 +42,8 @@
 #include <unistd.h>
 
 
-SPANK_PLUGIN (tmpshm, 1);
-const char *myname = "tmpshm";
+SPANK_PLUGIN (spank_private_tmpshm, 1);
+const char *myname = "spank_private_tmpshm";
 
 extern int rmrf(const char*);
 
@@ -52,7 +53,7 @@ const char *var_base = "/var/tmp";
 
 
 /* Build per-job tmpdir and shmdir directory names. */
-int get_tmpshm(spank_t sp, char *tmpdir, char *shmdir) {
+int _get_tmpshm(spank_t sp, char *tmpdir, char *shmdir) {
     uint32_t jobid;
     int rv;
 
@@ -83,7 +84,7 @@ int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
     char tmpdir[PATH_MAX];
     char shmdir[PATH_MAX];
 
-    if (get_tmpshm(sp, tmpdir, shmdir)) {
+    if (_get_tmpshm(sp, tmpdir, shmdir)) {
         slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
@@ -120,7 +121,7 @@ int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
         return -1;
     }
 
-    if (get_tmpshm(sp, tmpdir, shmdir)) {
+    if (_get_tmpshm(sp, tmpdir, shmdir)) {
         slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
@@ -164,7 +165,7 @@ int slurm_spank_job_epilog(spank_t sp, int ac, char **av) {
     char tmpdir[PATH_MAX];
     char shmdir[PATH_MAX];
 
-    if (get_tmpshm(sp, tmpdir, shmdir)) {
+    if (_get_tmpshm(sp, tmpdir, shmdir)) {
         slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }

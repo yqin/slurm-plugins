@@ -1,17 +1,17 @@
 /*
  * Copyright (c) 2016, Yong Qin <yong.qin@lbl.gov>. All rights reserved.
  *
- * getjobscript.c: SPANK plugin to collect job script.
+ * spank_collect_script.c: SPANK plugin to collect job script.
  *
  * This plugin creates a separate directory for each day on a shared stoarge
  * and copy the job script to that location. Another way to achieve this is to
  * instrument a slurmctld prolog and collect the job script from the hash dirs
  * within $StateSaveLocation.
  *
- * gcc -shared -fPIC -o getjobscript.so getjobscript.c
+ * gcc -shared -fPIC -o spank_collect_script.so spank_collect_script.c
  *
  * plugstack.conf:
- * required /etc/slurm/spank/getjobscript.so source=/var/slurm/spool
+ * required /etc/slurm/spank/spank_collect_script.so source=/var/slurm/spool
  *          target=shared_dir [uid=new_uid] [gid=new_gid]
  *
  * Note: new_uid and new_gid have to be what SlurmdUser can switch to 
@@ -31,8 +31,8 @@
 #include <unistd.h>
 
 
-SPANK_PLUGIN (getjobscript, 1);
-const char *myname = "getjobscript";
+SPANK_PLUGIN (spank_collect_script, 1);
+const char *myname = "spank_collect_script";
 
 
 /* Convert a string to UID/GID. */
