@@ -17,6 +17,7 @@
  */
 
 #include <limits.h>
+#include <regex.h>
 #include <slurm/slurm_errno.h>
 #include "src/slurmctld/slurmctld.h"
 
@@ -29,6 +30,8 @@ const uint32_t plugin_version = SLURM_VERSION_NUMBER;
 const char *myname = "job_submit_require_cpu_gpu_ratio";
 /* The Partition that needs to be checked - need to modify. */
 const char *mypart = "c_shared";
+/* GRES GPU regex. */
+const char *gpu_regex="^gpu:([0-9]+)$";
 /* The CPU/GPU ratio that is checked against - need to modify. */
 const int  ratio = 2;
 
@@ -57,29 +60,45 @@ int _check_ratio(char *part, char *gres, uint32_t ncpu) {
             info("%s: missed GRES on partition %s", myname, mypart);
             return ESLURM_INVALID_GRES;
 
-        /* Require GPU on a GRES partition. */
-        } else if (strncmp(gres, "gpu:", 4) != 0) {
-            info("%s: missed GPU on partition %s", myname, mypart); 
-            return ESLURM_INVALID_GRES;
-
-        /* Check CPU/GPU ratio. */
         } else {
-            /* Number of GPUs. */
+            regex_t re;
+            regmatch_t rm[2];
+
+            /* NUmber of GPUs. */
             uint32_t ngpu = 0;
 
-            /* Requested GPU number from the job. */
-            int sl = strlen(gres);
-
-            /* Assume GPU number is the last digit of the GRES option. */
-            if (_str2int(gres + sl - 1, &ngpu)) {
-                info("%s: invalid GPU number %s", myname, gres + sl - 1);
-                return ESLURM_INVALID_GRES;
+            if (regcomp(&re, gpu_regex, REG_EXTENDED) != 0) {
+                info("%s: failed to compile regex '%s': %m", myname, gpu_regex);
+                return ESLURM_INTERNAL;
             }
 
-            /* Sanity check of the CPU/GPU ratio. */
-            if (ncpu / ngpu < ratio) {
-                info("%s: CPU=%ul, GPU=%ul, not qualify", myname, ncpu, ngpu);
+            int rv = regexec(&re, gres, 2, rm, 0);
+
+            regfree(&re);
+
+            /* Match. */
+            if (rv == 0) {
+                /* Convert the GPU # to integer. */
+                if (_str2int(gres + rm[1].rm_so, &ngpu)) {
+                    info("%s: invalid GPU number %s", myname, gres + rm[1].rm_so);
+                    return ESLURM_INVALID_GRES;
+                }
+
+                /* Sanity check of the CPU/GPU ratio. */
+                if (ncpu / ngpu < ratio) {
+                    info("%s: CPU=%ul, GPU=%ul, not qualify", myname, ncpu, ngpu);
+                    return ESLURM_INVALID_GRES;
+                }
+
+            /* No match. */
+            } else if (rv == REG_NOMATCH) {
+                info("%s: missed GPU on partition %s", myname, mypart);
                 return ESLURM_INVALID_GRES;
+
+            /* Error. */
+            } else {
+                info("%s: failed to match regex '%s': %m", myname, gpu_regex);
+                return ESLURM_INTERNAL;
             }
         }
     }
