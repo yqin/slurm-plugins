@@ -28,10 +28,11 @@ const uint32_t plugin_version = SLURM_VERSION_NUMBER;
 
 /* Global variables. */
 const char *myname = "job_submit_require_cpu_gpu_ratio";
-/* The Partition that needs to be checked - need to modify. */
-const char *mypart = "c_shared";
 /* GRES GPU regex. */
 const char *gpu_regex="^gpu:[_[:alnum:]:]*([[:digit:]]+)$";
+
+/* The Partition that needs to be checked - need to modify. */
+const char *mypart = "c_shared";
 /* The CPU/GPU ratio that is checked against - need to modify. */
 const int  ratio = 2;
 
