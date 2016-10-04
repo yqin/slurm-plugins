@@ -55,13 +55,7 @@ int _str2int (char * str, uint32_t *p2int) {
 
 /* Check GRES to make sure CPU/GPU ratio meeting requirement. */
 int _check_ratio(char *part, char *gres, uint32_t ncpu) {
-    /* Ignore if no partition is provided. */
-    if (part == NULL) {
-        info("%: missed partition info", myname);
-        return SLURM_SUCCESS;
-    }
-
-    if (strcmp(part, mypart) == 0) {
+    if ((part != NULL) && (strcmp(part, mypart) == 0)) {
         /* Require GRES on a GRES partition. */
         if (gres == NULL) {
             info("%s: missed GRES on partition %s", myname, mypart);
