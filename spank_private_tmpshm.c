@@ -31,7 +31,7 @@
  *
  */
 
-#define _GNU_SOURCE_
+#define _GNU_SOURCE
 
 #include <linux/limits.h>
 #include <sched.h>
