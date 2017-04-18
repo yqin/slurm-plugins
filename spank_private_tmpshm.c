@@ -1,8 +1,8 @@
 /*
- * Copyright (c) 2016, Yong Qin <yong.qin@lbl.gov>. All rights reserved.
+ * Copyright (c) 2016-2017, Yong Qin <yong.qin@lbl.gov>. All rights reserved.
  *
- * spank_private_tmpshm.c : SPANK plugin for a per-job tmp (/tmp) and shm
- * (/dev/shm).
+ * spank_private_tmpshm.c : SPANK plugin for a per-job tmp (/tmp, /var/tmp) 
+ * and shm (/dev/shm).
  *
  * Managing /tmp has been an issue for HPC systems.  Typically there are three
  * ways to deal with it:
