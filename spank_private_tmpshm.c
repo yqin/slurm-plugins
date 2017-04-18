@@ -53,7 +53,7 @@ const char *var_base = "/var/tmp";
 
 
 /* Build per-job tmpdir and shmdir directory names. */
-int _get_tmpshm(spank_t sp, char *tmpdir, char *shmdir) {
+int _get_tmpshm (spank_t sp, char *tmpdir, char *shmdir) {
     uint32_t jobid;
     int rv;
 
@@ -103,7 +103,8 @@ int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
 }
 
 /* Clone mount namespace and bind mount tmpdir and shmdir in the current
- * namespace for each task before the priviledge is dropped. */
+ * namespace for each task before the priviledge is dropped. This callback
+ * function is only executed in a remote context. */
 int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
     uid_t uid = -1;
     gid_t gid = -1;
@@ -126,6 +127,7 @@ int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
         return -1;
     }
 
+    /* Change the ownership to current job user. */
     if (chown(tmpdir, uid, gid)) {
         slurm_error("%s: Unable to chown(%s, %u, %u): %m", myname, tmpdir, uid, gid);
         return -1;
@@ -136,22 +138,37 @@ int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
         return -1;
     }
 
-    if (unshare(CLONE_NEWNS)) {
-        slurm_error("%s: Unable to unshare(CLONE_NEWNS): %m", myname);
-
+    /* Make entire '/' mount tree shareable. */
+    if (mount("", "/", "none", MS_REC|MS_SHARED, "")) {
+        slurm_error("%s: Unable to share '/' mounts: %m", myname);
         return -1;
     }
 
+    /* Create a new namespace. */
+    if (unshare(CLONE_NEWNS)) {
+        slurm_error("%s: Unable to unshare(CLONE_NEWNS): %m", myname);
+        return -1;
+    }
+
+    /* Make entire '/' mount tree slave. */
+    if (mount("", "/", "none", MS_REC|MS_SLAVE, "")) {
+        slurm_error("%s: Unable to 'mount --make-rslave /'", myname);
+        return -1;
+    }
+
+    /* Bind mount '/var/tmp'. */
     if (mount(tmpdir, var_base, "none", MS_BIND, "")) {
         slurm_error("%s: Unable to bind mount(%s, %s): %m", myname, tmpdir, var_base);
         return -1;
     }
 
+    /* Bind mount '/tmp'. */
     if (mount(tmpdir, tmp_base, "none", MS_BIND, "")) {
         slurm_error("%s: Unable to bind mount(%s, %s): %m", myname, tmpdir, tmp_base);
         return -1;
     }
 
+    /* Bind mount '/dev/shm'. */
     if (mount(shmdir, shm_base, "none", MS_BIND, "")) {
         slurm_error("%s: Unable to bind mount(%s, %s): %m", myname, shmdir, shm_base);
         return -1;
@@ -161,7 +178,7 @@ int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
 }
 
 /* Remove tmpdir and shmdir in epilog. */
-int slurm_spank_job_epilog(spank_t sp, int ac, char **av) {
+int slurm_spank_job_epilog (spank_t sp, int ac, char **av) {
     char tmpdir[PATH_MAX];
     char shmdir[PATH_MAX];
 
