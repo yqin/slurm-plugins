@@ -33,7 +33,9 @@
 
 #define _GNU_SOURCE
 
+#include <errno.h>
 #include <linux/limits.h>
+#include <pwd.h>
 #include <sched.h>
 #include <slurm/spank.h>
 #include <stdint.h>
@@ -81,14 +83,35 @@ int _get_tmpshm (spank_t sp, char *tmpdir, char *shmdir) {
 
 /* Create tmpdir and shmdir in prolog. */
 int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
+    uid_t uid = -1;
+    gid_t gid = -1;
+    struct passwd *pwd = NULL;
+
     char tmpdir[PATH_MAX];
     char shmdir[PATH_MAX];
 
+    /* In prolog we can get uid but not gid. */
+    if (spank_get_item(sp, S_JOB_UID, &uid)) {
+        slurm_error("%s: Unable to get uid: %m", myname);
+        return -1;
+    }
+
+    /* Get gid of the user. */
+    errno = 0;
+    pwd = getpwuid(uid);
+    if (errno) {
+        slurm_error("%s, Unable to get gid: %m", myname);
+    }
+
+    gid = pwd->pw_gid;
+
+    /* Get private tmp and shm locations. */
     if (_get_tmpshm(sp, tmpdir, shmdir)) {
         slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
+    /* Create private tmp and shm directories. */
     if (mkdir(tmpdir, 0700)) {
         slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, tmpdir);
         return -1;
@@ -96,34 +119,6 @@ int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
 
     if (mkdir(shmdir, 0700)) {
         slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, shmdir);
-        return -1;
-    }
-
-    return 0;
-}
-
-/* Clone mount namespace and bind mount tmpdir and shmdir in the current
- * namespace for each task before the priviledge is dropped. This callback
- * function is only executed in a remote context. */
-int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
-    uid_t uid = -1;
-    gid_t gid = -1;
-
-    char tmpdir[PATH_MAX];
-    char shmdir[PATH_MAX];
-
-    if (spank_get_item(sp, S_JOB_UID, &uid)) {
-        slurm_error("%s: Unable to get uid", myname);
-        return -1;
-    }
-
-    if (spank_get_item(sp, S_JOB_GID, &gid)) {
-        slurm_error("%s: Unable to get gid", myname);
-        return -1;
-    }
-
-    if (_get_tmpshm(sp, tmpdir, shmdir)) {
-        slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
@@ -135,6 +130,22 @@ int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
 
     if (chown(shmdir, uid, gid)) {
         slurm_error("%s: Unable to chown(%s, %u, %u): %m", myname, shmdir, uid, gid);
+        return -1;
+    }
+
+    return 0;
+}
+
+/* Clone mount namespace and bind mount tmpdir and shmdir in the current
+ * namespace for each task before the priviledge is dropped. This callback
+ * function is only executed in a remote context. */
+int slurm_spank_task_init_privileged (spank_t sp, int ac, char **av) {
+    char tmpdir[PATH_MAX];
+    char shmdir[PATH_MAX];
+
+    /* Get private tmp and shm locations. */
+    if (_get_tmpshm(sp, tmpdir, shmdir)) {
+        slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
@@ -182,11 +193,13 @@ int slurm_spank_job_epilog (spank_t sp, int ac, char **av) {
     char tmpdir[PATH_MAX];
     char shmdir[PATH_MAX];
 
+    /* Get private tmp and shm locations. */
     if (_get_tmpshm(sp, tmpdir, shmdir)) {
         slurm_error("%s: Unable to construct tmpdir or shmdir", myname);
         return -1;
     }
 
+    /* Remove tmp and shm. */
     if (rmrf(tmpdir)) {
         slurm_error("%s: Unable to rmrf(%s) (tmpdir): %m", myname, tmpdir);
         return -1;
