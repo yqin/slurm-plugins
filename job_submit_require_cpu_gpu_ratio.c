@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016, Yong Qin <yong.qin@lbl.gov>. All rights reserved.
+ * Copyright (c) 2016-2017, Yong Qin <yong.qin@lbl.gov>. All rights reserved.
  *
  * job_submit_require_cpu_gpu_ratio: Job Submit plugin to enfornce the
  *      CPU/GPU ratio to facilitate accounting.
