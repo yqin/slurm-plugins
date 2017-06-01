@@ -34,6 +34,7 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
+#include <ftw.h>
 #include <linux/limits.h>
 #include <pwd.h>
 #include <sched.h>
@@ -53,6 +54,16 @@ const char *shm_base = "/dev/shm";
 const char *tmp_base = "/tmp";
 const char *var_base = "/var/tmp";
 
+
+/* Unlink callback function to handle both file and directory. */
+int _unlink_cb_f(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
+    return remove(fpath);
+}
+
+/* rm -rf */
+int _rmrf(const char *path) {
+    return nftw(path, _unlink_cb_f, 64, FTW_DEPTH | FTW_PHYS);
+}
 
 /* Build per-job tmpdir and shmdir directory names. */
 int _get_tmpshm (spank_t sp, char *tmpdir, char *shmdir) {
@@ -112,12 +123,12 @@ int slurm_spank_job_prolog (spank_t sp, int ac, char **av) {
     }
 
     /* Create private tmp and shm directories. */
-    if (mkdir(tmpdir, 0700)) {
+    if (mkdir(tmpdir, 0700) && errno != EEXIST) {
         slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, tmpdir);
         return -1;
     }
 
-    if (mkdir(shmdir, 0700)) {
+    if (mkdir(shmdir, 0700) && errno != EEXIST) {
         slurm_error("%s: Unable to mkdir(%s, 0700): %m", myname, shmdir);
         return -1;
     }
@@ -200,12 +211,12 @@ int slurm_spank_job_epilog (spank_t sp, int ac, char **av) {
     }
 
     /* Remove tmp and shm. */
-    if (rmrf(tmpdir)) {
+    if (_rmrf(tmpdir) && errno != ENOENT) {
         slurm_error("%s: Unable to rmrf(%s) (tmpdir): %m", myname, tmpdir);
         return -1;
     }
 
-    if (rmrf(shmdir)) {
+    if (_rmrf(shmdir) && errno != ENOENT) {
         slurm_error("%s: Unable to rmrf(%s) (shmdir): %m", myname, shmdir);
         return -1;
     }

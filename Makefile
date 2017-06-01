@@ -16,8 +16,8 @@ spank_demo.so: spank_demo.c
 spank_collect_script.so: spank_collect_script.c
 	gcc -g -shared -fPIC -o spank_collect_script.so spank_collect_script.c
 
-spank_private_tmpshm.so: spank_private_tmpshm.c spank_private_tmpshm_rmrf.c
-	gcc -g -shared -fPIC -o spank_private_tmpshm.so spank_private_tmpshm.c spank_private_tmpshm_rmrf.c
+spank_private_tmpshm.so: spank_private_tmpshm.c
+	gcc -g -shared -fPIC -o spank_private_tmpshm.so spank_private_tmpshm.c
 
 
 job_submit: $(job_submit_plugins)
