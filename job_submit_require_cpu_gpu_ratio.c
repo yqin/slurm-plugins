@@ -88,7 +88,7 @@ int _check_ratio(char *part, char *gres, uint32_t ncpu) {
 
                 if (rv == 0) { /* match */
                     /* Convert the GPU # to integer. */
-                    if (_str2int(gres + rm[1].rm_so, &ngpu) && ngpu < 1) {
+                    if (_str2int(gres + rm[1].rm_so, &ngpu) || ngpu < 1) {
                         info("%s: invalid GPU number %s", myname, gres + rm[1].rm_so);
                         return ESLURM_INVALID_GRES;
                     }
