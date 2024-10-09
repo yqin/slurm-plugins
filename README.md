@@ -1,6 +1,6 @@
-This is a set of [Slurm] (http://slurm.schedmd.com/) plugins that are used on [LBNL HPCS] (http://lrc.lbl.gov/) clusters.
+This is a set of [Slurm](http://slurm.schedmd.com/) plugins that are used on [LBNL HPCS](http://lrc.lbl.gov/) clusters.
 
-To build Job Submit plugins requires [Slurm source code] (https://github.com/SchedMD/slurm) and Makefile should be modified to point to the source code location.
+To build Job Submit plugins requires [Slurm source code](https://github.com/SchedMD/slurm) and Makefile should be modified to point to the source code location.
 
 1. job_submit_collect_script: A Job Submit plugin to collect job scripts on the fly and save them to a designated location. You will need to define your own location to save the job scripts.  (BUGGY DON'T USE YET)
 
